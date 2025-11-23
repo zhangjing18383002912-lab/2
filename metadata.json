@@ -1,0 +1,7 @@
+{
+  "name": "GastroEdu 3D: Stomach Cancer Guide",
+  "description": "An interactive, educational 3D-style application for visualizing gastric cancer stages, treatment, and recovery.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
