@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { MessageCircle, X, Send, Bot, Loader2, Settings, Save, RotateCcw } from 'lucide-react';
 import { askMedicalAssistant } from '../services/geminiService';
@@ -13,11 +12,10 @@ export interface AssistantChatRef {
   open: () => void;
 }
 
-// Default configuration (SiliconFlow - Server side will handle the key if empty)
+// Default configuration
 const DEFAULT_CONFIG = {
-  baseUrl: "https://api.siliconflow.cn/v1",
   apiKey: "", 
-  model: "deepseek-ai/DeepSeek-V3.1-Terminus"
+  model: "gemini-2.5-flash"
 };
 
 const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ context }, ref) => {
@@ -39,11 +37,11 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
   useImperativeHandle(ref, () => ({
     open: () => setIsOpen(true),
     sendMessage: (text: string) => {
-      if (!isOpen) setIsOpen(true);
-      // Short delay to ensure state updates and UI renders before sending
+      setIsOpen(true);
+      // Ensure UI is rendered before processing
       setTimeout(() => {
         handleSendInternal(text);
-      }, 100);
+      }, 50);
     }
   }));
 
@@ -66,7 +64,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'model',
-      text: `配置已更新。\n模型: ${config.model || "默认"}\n模式: ${config.apiKey ? "自定义 Key" : "公共线路"}`
+      text: `配置已更新。\n模型: ${config.model}`
     }]);
   };
 
@@ -80,7 +78,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isOpen]);
 
   const handleSendInternal = async (textToSend: string) => {
     if (!textToSend.trim()) return;
@@ -89,13 +87,17 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
-    // Pass the current config to the service
-    // Use the latest context passed via props
-    const answer = await askMedicalAssistant(textToSend, context, config);
-    
-    const botMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: answer };
-    setMessages(prev => [...prev, botMsg]);
-    setIsLoading(false);
+    try {
+      // Pass the current config to the service
+      const answer = await askMedicalAssistant(textToSend, context, config);
+      
+      const botMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: answer };
+      setMessages(prev => [...prev, botMsg]);
+    } catch (e) {
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "发生错误，请稍后再试。" }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSend = () => {
@@ -135,7 +137,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Settings size={18} className="text-teal-600"/>
-                    模型设置
+                    设置 API Key
                   </h3>
                   <button onClick={resetConfig} className="text-xs text-teal-600 flex items-center gap-1 hover:underline">
                     <RotateCcw size={12}/> 重置默认
@@ -143,15 +145,8 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                </div>
                
                <div className="space-y-4">
-                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">API 地址 (Base URL)</label>
-                   <input 
-                     type="text" 
-                     value={config.baseUrl}
-                     onChange={(e) => setConfig({...config, baseUrl: e.target.value})}
-                     placeholder="https://api.siliconflow.cn/v1"
-                     className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
-                   />
+                 <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 mb-2">
+                    由于这是一个纯前端演示，请填写您的 Google Gemini API Key 以启用对话功能。
                  </div>
 
                  <div>
@@ -160,7 +155,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                      type="password" 
                      value={config.apiKey}
                      onChange={(e) => setConfig({...config, apiKey: e.target.value})}
-                     placeholder="未填写则自动使用内置免费线路"
+                     placeholder="sk-..."
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none placeholder:text-slate-400"
                    />
                  </div>
@@ -171,7 +166,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                      type="text" 
                      value={config.model}
                      onChange={(e) => setConfig({...config, model: e.target.value})}
-                     placeholder="deepseek-ai/DeepSeek-V3.1-Terminus"
+                     placeholder="gemini-2.5-flash"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
                    />
                  </div>
@@ -217,7 +212,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={config.apiKey ? "输入您的问题..." : "输入问题 (使用公共线路)..."}
+              placeholder="输入您的问题..."
               className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
             <button 

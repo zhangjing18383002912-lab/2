@@ -1,16 +1,25 @@
-// 此服务调用后端通用代理 (/api/chat)
-// 支持任意 OpenAI 兼容接口 (DeepSeek, Moonshot, OpenAI, etc.)
+import { GoogleGenAI } from "@google/genai";
 
 interface AIConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
+  apiKey?: string;
+  model?: string;
 }
 
 export const askMedicalAssistant = async (question: string, context: string, config: AIConfig): Promise<string> => {
   try {
-    // 构建系统提示词
-    const systemPrompt = `
+    // 优先使用用户配置的 Key，否则使用环境变量
+    const apiKey = config.apiKey || process.env.API_KEY;
+    
+    if (!apiKey) {
+      return "请先在设置中配置 API Key，或联系管理员设置环境变量。";
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // 智能选择模型：用户自定义 > 默认 Flash 模型
+    const modelName = config.model || 'gemini-2.5-flash';
+
+    const systemInstruction = `
       You are a compassionate and knowledgeable medical assistant specializing in gastric cancer education.
       Your audience consists of patients and their families in China.
       
@@ -22,35 +31,21 @@ export const askMedicalAssistant = async (question: string, context: string, con
       3. If the user asks for medical advice, provide general info but advise consulting a doctor.
       4. Keep answers concise (under 300 words).
       5. Use Markdown for formatting.
+      6. If the context mentions 'Fried Frailty Scale', analyze the score and provide specific exercise/diet advice.
     `;
 
-    // 构建消息历史
-    const messages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: question }
-    ];
-
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        messages, 
-        config 
-      }),
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: question,
+      config: {
+        systemInstruction: systemInstruction,
+      }
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || `请求失败: ${response.status}`);
-    }
-
-    return data.text;
+    return response.text || "抱歉，我没有生成有效的内容。";
 
   } catch (error: any) {
-    console.error("Chat Client Error:", error);
-    return `助手暂时不可用: ${error.message}`;
+    console.error("Gemini SDK Error:", error);
+    return `助手暂时不可用: ${error.message || "未知错误"}`;
   }
 };

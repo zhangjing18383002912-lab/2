@@ -104,9 +104,11 @@ export default function App() {
          friedItems.includes(4) ? "活动量低" : ""
      ].filter(s => s).join("、");
 
-     const prompt = `我完成了 Fried 衰弱量表评估，结果是【${status}】（${score}/5分）。${selectedSymptoms ? `我目前的主要问题是：${selectedSymptoms}。` : ""}我的体重是 ${userWeight || '未填写'} kg。请为我制定一份针对性的康复方案（包含饮食重点和适合的运动）。`;
+     const prompt = `我刚刚完成了 Fried 衰弱量表评估，结果是【${status}】（${score}/5分）。${selectedSymptoms ? `我目前选中的问题是：${selectedSymptoms}。` : ""}我的体重是 ${userWeight || '未填写'} kg。请根据我的衰弱状况，为我制定一份简要的康复重点建议（包括饮食注意和适合我的运动强度）。`;
      
-     chatRef.current?.sendMessage(prompt);
+     if (chatRef.current) {
+        chatRef.current.sendMessage(prompt);
+     }
   };
 
   // Render different Visual Modes for the Stomach Component
@@ -394,7 +396,7 @@ export default function App() {
                       <h4 className="font-bold text-teal-700 text-sm">术后当日 (Day 0)</h4>
                       <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                         麻醉苏醒后，可能会有胃管、尿管、引流管。<br/>
-                        <strong>任务：</strong> 配合医护监测生命体征；有痰尽量咳出；疼痛评分>3分及时告知护士。
+                        <strong>任务：</strong> 配合医护监测生命体征；有痰尽量咳出；疼痛评分&gt;3分及时告知护士。
                       </p>
                     </div>
                     <div className="relative">
@@ -421,7 +423,7 @@ export default function App() {
                    <div className="grid grid-cols-3 gap-2">
                       <div className="bg-white p-2 rounded border border-red-100 text-center">
                          <span className="block text-xs font-bold text-slate-700 mb-1">持续高热</span>
-                         <span className="text-[10px] text-red-500 bg-red-50 px-1 py-0.5 rounded">> 38.5℃</span>
+                         <span className="text-[10px] text-red-500 bg-red-50 px-1 py-0.5 rounded">&gt; 38.5℃</span>
                       </div>
                       <div className="bg-white p-2 rounded border border-red-100 text-center">
                          <span className="block text-xs font-bold text-slate-700 mb-1">腹部剧痛</span>
