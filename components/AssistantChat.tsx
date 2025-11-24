@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { MessageCircle, X, Send, Bot, Loader2, Settings, Save, RotateCcw } from 'lucide-react';
 import { askMedicalAssistant } from '../services/geminiService';
 import { ChatMessage } from '../types';
@@ -8,14 +8,19 @@ interface AssistantChatProps {
   context: string;
 }
 
+export interface AssistantChatRef {
+  sendMessage: (text: string) => void;
+  open: () => void;
+}
+
 // Default configuration (SiliconFlow - Server side will handle the key if empty)
 const DEFAULT_CONFIG = {
   baseUrl: "https://api.siliconflow.cn/v1",
-  apiKey: "", // Left empty intentionally; backend will provide the default key
+  apiKey: "", 
   model: "deepseek-ai/DeepSeek-V3.1-Terminus"
 };
 
-const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
+const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ context }, ref) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
@@ -29,6 +34,18 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
 
   // Settings State
   const [config, setConfig] = useState(DEFAULT_CONFIG);
+
+  // Expose methods to parent
+  useImperativeHandle(ref, () => ({
+    open: () => setIsOpen(true),
+    sendMessage: (text: string) => {
+      if (!isOpen) setIsOpen(true);
+      // Short delay to ensure state updates and UI renders before sending
+      setTimeout(() => {
+        handleSendInternal(text);
+      }, 100);
+    }
+  }));
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -46,14 +63,10 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
     localStorage.setItem('ai_config', JSON.stringify(config));
     setShowSettings(false);
     
-    // Notify user
-    const modelName = config.model || "默认模型";
-    const keyStatus = config.apiKey ? "自定义 Key" : "默认公共 Key";
-    
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'model',
-      text: `配置已更新。\n模型: ${modelName}\n模式: ${keyStatus}`
+      text: `配置已更新。\n模型: ${config.model || "默认"}\n模式: ${config.apiKey ? "自定义 Key" : "公共线路"}`
     }]);
   };
 
@@ -69,23 +82,25 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    
-    // Note: We no longer block if config.apiKey is empty.
-    // The backend will use the default key if missing.
+  const handleSendInternal = async (textToSend: string) => {
+    if (!textToSend.trim()) return;
 
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input };
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: textToSend };
     setMessages(prev => [...prev, userMsg]);
-    setInput('');
     setIsLoading(true);
 
     // Pass the current config to the service
-    const answer = await askMedicalAssistant(userMsg.text, context, config);
+    // Use the latest context passed via props
+    const answer = await askMedicalAssistant(textToSend, context, config);
     
     const botMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: answer };
     setMessages(prev => [...prev, botMsg]);
     setIsLoading(false);
+  };
+
+  const handleSend = () => {
+    handleSendInternal(input);
+    setInput('');
   };
 
   return (
@@ -137,9 +152,6 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                      placeholder="https://api.siliconflow.cn/v1"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
                    />
-                   <p className="text-[10px] text-slate-400 mt-1">
-                     默认地址: <code className="bg-slate-100 px-1">https://api.siliconflow.cn/v1</code>
-                   </p>
                  </div>
 
                  <div>
@@ -151,10 +163,6 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                      placeholder="未填写则自动使用内置免费线路"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none placeholder:text-slate-400"
                    />
-                   <p className="text-[10px] text-green-600 mt-1 flex items-center gap-1">
-                     <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-                     留空即可使用系统内置公共 Key
-                   </p>
                  </div>
 
                  <div>
@@ -233,6 +241,6 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
       </button>
     </div>
   );
-};
+});
 
 export default AssistantChat;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Stethoscope, 
   Building2, 
@@ -12,11 +12,25 @@ import {
   Brain,
   BatteryCharging,
   PlayCircle,
-  ClipboardCheck
+  ClipboardCheck,
+  Clock,
+  Thermometer,
+  CheckCircle2,
+  XCircle,
+  ThumbsUp,
+  ThumbsDown,
+  AlertTriangle,
+  Calculator,
+  Phone,
+  Bed,
+  Sparkles,
+  Layers,
+  Wind,
+  Bot
 } from 'lucide-react';
 import { Phase, BorrmannType, NavItem } from './types';
 import StomachVisual from './components/StomachVisual';
-import AssistantChat from './components/AssistantChat';
+import AssistantChat, { AssistantChatRef } from './components/AssistantChat';
 import { InfoCard } from './components/InfoCard';
 
 const NAV_ITEMS: NavItem[] = [
@@ -31,7 +45,12 @@ export default function App() {
   const [activeBorrmann, setActiveBorrmann] = useState<BorrmannType>(BorrmannType.I);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoTitle, setVideoTitle] = useState("");
+  
+  // Frailty & Nutrition State
   const [friedItems, setFriedItems] = useState<number[]>([]);
+  const [userWeight, setUserWeight] = useState<string>('');
+  
+  const chatRef = useRef<AssistantChatRef>(null);
 
   // Toggle function for Fried Scale items
   const toggleFriedItem = (index: number) => {
@@ -42,13 +61,29 @@ export default function App() {
     );
   };
 
+  const calculateNutrition = () => {
+    const w = parseFloat(userWeight);
+    if (!w || w <= 0) return null;
+    return {
+      minEnergy: Math.round(w * 25),
+      maxEnergy: Math.round(w * 30),
+      minProtein: (w * 1.2).toFixed(1),
+      maxProtein: (w * 1.5).toFixed(1)
+    };
+  };
+
+  const nutritionResult = calculateNutrition();
+
   // Determine current context string for the AI Assistant
   const getContext = () => {
     switch (activePhase) {
-      case Phase.DIAGNOSIS: return `当前在确诊阶段，查看 Borrmann ${activeBorrmann}型胃癌演示。关注症状、分期、确诊方式。`;
-      case Phase.HOSPITALIZATION: return "当前在住院阶段，关注术前准备、术后护理、引流管、饮食。";
-      case Phase.DISCHARGE: return "当前在出院阶段，关注倾倒综合征、少食多餐、随访。";
-      case Phase.FRAILTY: return "当前在衰弱管理，关注老年衰弱、营养补充、运动处方。";
+      case Phase.DIAGNOSIS: return `当前在确诊阶段，查看 Borrmann ${activeBorrmann}型胃癌演示。用户关注TNM分期、早期vs晚期症状对比及检查项目。`;
+      case Phase.HOSPITALIZATION: return "当前在住院阶段，关注术后72小时康复流程、疼痛管理及术后并发症预警。";
+      case Phase.DISCHARGE: return "当前在出院阶段，关注居家护理、术后饮食红绿灯（宜忌）及紧急就医指征。";
+      case Phase.FRAILTY: 
+        const score = friedItems.length;
+        const status = score === 0 ? '健康' : score <= 2 ? '衰弱前期' : '衰弱';
+        return `当前在衰弱管理阶段。用户进行了Fried衰弱量表自测，选中了${score}项，评估结果为：${status}。体重为${userWeight || '未知'}kg。请针对此结果提供个性化营养和运动建议。`;
       default: return "胃癌科普首页";
     }
   };
@@ -56,6 +91,22 @@ export default function App() {
   const openVideo = (title: string) => {
     setVideoTitle(title);
     setShowVideoModal(true);
+  };
+
+  const handleConsultAI = () => {
+     const score = friedItems.length;
+     const status = score === 0 ? '健康' : score <= 2 ? '衰弱前期' : '衰弱';
+     const selectedSymptoms = [
+         friedItems.includes(0) ? "体重下降" : "",
+         friedItems.includes(1) ? "自觉疲乏" : "",
+         friedItems.includes(2) ? "握力减弱" : "",
+         friedItems.includes(3) ? "行走缓慢" : "",
+         friedItems.includes(4) ? "活动量低" : ""
+     ].filter(s => s).join("、");
+
+     const prompt = `我完成了 Fried 衰弱量表评估，结果是【${status}】（${score}/5分）。${selectedSymptoms ? `我目前的主要问题是：${selectedSymptoms}。` : ""}我的体重是 ${userWeight || '未填写'} kg。请为我制定一份针对性的康复方案（包含饮食重点和适合的运动）。`;
+     
+     chatRef.current?.sendMessage(prompt);
   };
 
   // Render different Visual Modes for the Stomach Component
@@ -172,43 +223,107 @@ export default function App() {
                     </button>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InfoCard title="常见症状" icon={<AlertCircle />}>
-                      <ul className="list-disc pl-4 space-y-1 text-sm marker:text-rose-500">
-                        <li>上腹部疼痛或不适</li>
-                        <li>食欲减退、消瘦</li>
-                        <li>恶心、呕吐、黑便</li>
-                        <li>早饱感（吃一点就饱）</li>
-                      </ul>
-                    </InfoCard>
-                    <InfoCard title="确诊金标准" icon={<Stethoscope />}>
-                      <p className="text-sm"><strong>胃镜 + 病理活检</strong> 是确诊的唯一金标准。</p>
-                      <p className="text-xs text-slate-500 mt-2">辅助检查：CT（分期）、超声胃镜（浸润深度）、肿瘤标志物。</p>
-                    </InfoCard>
-                 </div>
+                 {/* Symptoms Atlas */}
+                 <InfoCard title="症状图谱：别被假象蒙蔽" icon={<AlertCircle />}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 bg-slate-200 text-slate-600 text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">早期 (Early)</div>
+                          <h4 className="text-sm font-bold text-slate-700 mb-2">隐匿期：容易忽视</h4>
+                          <ul className="text-xs text-slate-600 space-y-1.5">
+                             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 轻微腹胀、消化不良</li>
+                             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 偶尔反酸、嗳气</li>
+                             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 食欲稍减退</li>
+                          </ul>
+                          <p className="text-[10px] text-orange-600 mt-2 font-bold bg-orange-50 p-1 rounded border border-orange-100">
+                             ⚠️ 常被误认为“老胃病”或胃炎
+                          </p>
+                       </div>
+                       <div className="bg-red-50 p-3 rounded-lg border border-red-200 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 bg-red-200 text-red-800 text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">晚期 (Late)</div>
+                          <h4 className="text-sm font-bold text-red-800 mb-2">报警期：必须就医</h4>
+                          <ul className="text-xs text-red-900 space-y-1.5">
+                             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div> 持续上腹痛、呕血</li>
+                             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div> 黑便（柏油样便）</li>
+                             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div> 不明原因消瘦、吞咽困难</li>
+                          </ul>
+                       </div>
+                    </div>
+                 </InfoCard>
 
-                 <InfoCard title="治疗策略概览" icon={<Activity />}>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded">早期</span>
-                        <span className="text-sm">内镜下切除 (ESD) 或 微创手术</span>
+                 {/* Visual TNM Staging - Onion Layer Style */}
+                 <InfoCard title="可视化 TNM 分期：像剥洋葱一样看肿瘤" icon={<Layers />}>
+                    <div className="flex flex-col md:flex-row items-center gap-6">
+                      <div className="relative w-40 h-40 shrink-0">
+                         {/* M Layer (Outermost) */}
+                         <div className="absolute inset-0 rounded-full border-2 border-dashed border-orange-300 flex items-start justify-center pt-1">
+                            <span className="text-[10px] text-orange-400 font-bold bg-white px-1 -mt-2">M 远处转移</span>
+                         </div>
+                         {/* N Layer */}
+                         <div className="absolute inset-4 rounded-full border-2 border-purple-300 flex items-start justify-center pt-1">
+                            <span className="text-[10px] text-purple-400 font-bold bg-white px-1 -mt-2">N 淋巴扩散</span>
+                         </div>
+                         {/* T Layer (Core) */}
+                         <div className="absolute inset-8 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 flex items-center justify-center">
+                            <div className="text-center">
+                               <div className="text-xl font-bold text-blue-600">T</div>
+                               <div className="text-[9px] text-blue-500">浸润深度</div>
+                            </div>
+                         </div>
+                         {/* Interaction Dots */}
+                         <div className="absolute top-1/2 -right-4 w-12 h-0.5 bg-orange-300"></div>
+                         <div className="absolute top-1/2 -right-10 text-[9px] text-slate-500 w-16">肺、肝、骨</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">局部晚期</span>
-                        <span className="text-sm">新辅助化疗 + 手术 + 术后辅助化疗</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded">晚期</span>
-                        <span className="text-sm">转化治疗、靶向/免疫治疗、姑息治疗</span>
+                      <div className="flex-1 space-y-3">
+                         <div className="flex gap-2 text-xs">
+                            <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shrink-0">T (Tumor)</span>
+                            <span className="text-slate-600">
+                               肿瘤钻得有多深？<br/>
+                               <span className="text-[10px] text-slate-400">黏膜层(T1) → 肌层(T2) → 浆膜层(T3/T4)</span>
+                            </span>
+                         </div>
+                         <div className="flex gap-2 text-xs">
+                            <span className="font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-100 shrink-0">N (Node)</span>
+                            <span className="text-slate-600">
+                               周围淋巴结有没有受到“污染”？<br/>
+                               <span className="text-[10px] text-slate-400">数目越多(N0-N3)，分期越晚</span>
+                            </span>
+                         </div>
+                         <div className="flex gap-2 text-xs">
+                            <span className="font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 shrink-0">M (Metastasis)</span>
+                            <span className="text-slate-600">
+                               有没有跑到别的地方？<br/>
+                               <span className="text-[10px] text-slate-400">一旦发生(M1)，即为晚期</span>
+                            </span>
+                         </div>
                       </div>
                     </div>
                  </InfoCard>
-                 
-                 <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
-                    <div className="flex gap-2 text-rose-800 font-bold mb-2">
-                       <Brain size={20}/> 心理调适
-                    </div>
-                    <p className="text-sm text-rose-700">确诊初期感到恐惧是正常的。建议：加入病友群获取正向支持，坦诚与医生沟通对副作用的担忧，相信规范化治疗。</p>
+
+                 {/* Check List */}
+                 <div className="bg-white rounded-xl border p-4">
+                   <h3 className="font-bold mb-3 flex items-center gap-2 text-slate-800">
+                     <CheckCircle2 size={18} className="text-teal-600"/> 必做检查清单
+                   </h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                     {[
+                       { text: '胃镜 + 活检', desc: '确诊金标准' },
+                       { text: '腹部增强 CT', desc: '评估分期、淋巴结' },
+                       { text: '超声胃镜 (EUS)', desc: '判断侵犯深度' },
+                       { text: 'HER2 免疫组化', desc: '决定能否用靶向药' },
+                       { text: '肿瘤标志物', desc: 'CEA, CA19-9, CA72-4' },
+                       { text: '心肺功能评估', desc: '评估手术耐受力' }
+                     ].map((item,i) => (
+                        <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded border border-slate-100">
+                          <div className="w-5 h-5 rounded-full border border-teal-500 flex items-center justify-center shrink-0">
+                             <div className="w-2.5 h-2.5 bg-teal-500 rounded-full"></div>
+                          </div>
+                          <div>
+                             <div className="text-sm font-medium text-slate-700">{item.text}</div>
+                             <div className="text-[10px] text-slate-500">{item.desc}</div>
+                          </div>
+                        </div>
+                     ))}
+                   </div>
                  </div>
               </div>
             )}
@@ -216,66 +331,218 @@ export default function App() {
             {/* Phase 2: Hospitalization */}
             {activePhase === Phase.HOSPITALIZATION && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                <InfoCard title="手术治疗" icon={<Scissors />}>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-bold text-slate-700 text-sm mb-1">术前准备 (Pre-op)</h4>
-                      <p className="text-sm text-slate-600">营养评估，练习<strong>腹式呼吸</strong>与有效咳嗽（预防肺部感染）。</p>
+                
+                {/* Pain Management */}
+                <InfoCard title="疼痛管理：不要忍痛！" icon={<Sparkles />}>
+                   <div className="flex flex-col md:flex-row gap-4">
+                      <div className="flex-1">
+                         <h4 className="text-sm font-bold text-slate-700 mb-2">VAS 疼痛评分尺</h4>
+                         <div className="h-4 bg-gradient-to-r from-green-300 via-yellow-300 to-red-500 rounded-full relative mb-6">
+                            <div className="absolute -bottom-5 left-0 text-[10px]">0 无痛</div>
+                            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px]">5 中度</div>
+                            <div className="absolute -bottom-5 right-0 text-[10px]">10 剧痛</div>
+                         </div>
+                         <p className="text-xs text-slate-600">
+                            当评分 <span className="font-bold text-red-500">≥ 4分</span>（影响睡眠）时，必须告诉医生。
+                         </p>
+                      </div>
+                      <div className="flex-1 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                         <div className="flex items-center gap-2 mb-1">
+                            <Clock size={16} className="text-blue-600"/>
+                            <span className="font-bold text-sm text-blue-800">黄金原则：按时给药</span>
+                         </div>
+                         <p className="text-[10px] text-blue-700">
+                            现在的理念不是痛了再吃，而是<span className="font-bold">按时吃药</span>预防疼痛爆发。这能减少总药量，成瘾性极低。
+                         </p>
+                      </div>
+                   </div>
+                </InfoCard>
+
+                {/* Pre/Post Op Checklist */}
+                <InfoCard title="围手术期关键任务" icon={<ClipboardCheck />}>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Lung */}
+                      <div className="border border-slate-100 rounded-lg p-3 hover:shadow-sm transition-shadow">
+                         <div className="flex items-center gap-2 mb-2">
+                            <div className="p-1.5 bg-cyan-100 rounded text-cyan-600"><Wind size={18}/></div>
+                            <h4 className="font-bold text-sm text-slate-700">肺功能训练</h4>
+                         </div>
+                         <p className="text-xs text-slate-500 mb-2">防止术后肺炎、肺不张。</p>
+                         <div className="text-[10px] bg-slate-50 p-2 rounded text-slate-600">
+                            <strong>方法：</strong> 深吸气 → 吹气球/吹指套。每天 3-4 次，每次 10-15 分钟。
+                         </div>
+                      </div>
+                      {/* DVT */}
+                      <div className="border border-slate-100 rounded-lg p-3 hover:shadow-sm transition-shadow">
+                         <div className="flex items-center gap-2 mb-2">
+                            <div className="p-1.5 bg-rose-100 rounded text-rose-600"><Activity size={18}/></div>
+                            <h4 className="font-bold text-sm text-slate-700">防血栓 (踝泵运动)</h4>
+                         </div>
+                         <p className="text-xs text-slate-500 mb-2">防止下肢深静脉血栓 (DVT)。</p>
+                         <div className="text-[10px] bg-slate-50 p-2 rounded text-slate-600">
+                            <strong>方法：</strong> 躺在床上，用力勾脚尖（保持10秒）→ 用力绷脚尖（保持10秒）。反复进行。
+                         </div>
+                      </div>
+                   </div>
+                </InfoCard>
+
+                {/* 72h Timeline */}
+                <InfoCard title="术后 72小时 黄金康复表" icon={<Clock />}>
+                  <div className="relative pl-6 border-l-2 border-slate-200 space-y-8 my-2">
+                    <div className="relative">
+                      <div className="absolute -left-[31px] top-0 w-4 h-4 bg-teal-500 rounded-full ring-4 ring-white"></div>
+                      <h4 className="font-bold text-teal-700 text-sm">术后当日 (Day 0)</h4>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        麻醉苏醒后，可能会有胃管、尿管、引流管。<br/>
+                        <strong>任务：</strong> 配合医护监测生命体征；有痰尽量咳出；疼痛评分>3分及时告知护士。
+                      </p>
                     </div>
-                    <div className="h-px bg-slate-100"></div>
-                    <div>
-                      <h4 className="font-bold text-slate-700 text-sm mb-1">术后早期 (Post-op)</h4>
-                      <ul className="list-disc pl-4 text-sm text-slate-600">
-                        <li><strong>早期下床：</strong> 术后第1天即可尝试床边站立，促进肠道蠕动，预防血栓。</li>
-                        <li><strong>引流管：</strong> 保持通畅，翻身时避免牵拉。</li>
-                        <li><strong>疼痛管理：</strong> 敢于表达疼痛，合理使用镇痛泵。</li>
-                      </ul>
+                    <div className="relative">
+                      <div className="absolute -left-[31px] top-0 w-4 h-4 bg-teal-500 rounded-full ring-4 ring-white"></div>
+                      <h4 className="font-bold text-teal-700 text-sm">术后第1天 (Day 1)</h4>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        拔除尿管。<br/>
+                        <strong>任务：</strong> <span className="text-rose-600 font-bold">早期活动！</span> 尝试床边坐起、站立甚至移步。这是预防血栓和肺炎的关键。
+                      </p>
+                    </div>
+                     <div className="relative">
+                      <div className="absolute -left-[31px] top-0 w-4 h-4 bg-teal-500 rounded-full ring-4 ring-white"></div>
+                      <h4 className="font-bold text-teal-700 text-sm">术后第2-3天 (Day 2-3)</h4>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        肠道功能逐渐恢复。<br/>
+                        <strong>任务：</strong> 下床走动促进排气（放屁）。排气后，遵医嘱可尝试少量饮水。
+                      </p>
                     </div>
                   </div>
                 </InfoCard>
 
-                <InfoCard title="化疗与药物" icon={<Pill />}>
-                  <p className="mb-2 text-sm">常见方案：奥沙利铂 + 卡培他滨/替吉奥 (SOX/XELOX)</p>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                      <span className="text-xs font-bold block mb-1">恶心呕吐</span>
-                      <span className="text-xs text-slate-500">预防性止吐药，少食多餐，清淡饮食。</span>
-                    </div>
-                     <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                      <span className="text-xs font-bold block mb-1">骨髓抑制</span>
-                      <span className="text-xs text-slate-500">定期查血常规，必要时使用升白针。</span>
-                    </div>
-                  </div>
-                </InfoCard>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 shadow-sm">
+                   <h3 className="font-bold text-red-800 mb-2 flex items-center gap-2 text-sm"><AlertTriangle size={18}/> 警惕！并发症信号</h3>
+                   <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-white p-2 rounded border border-red-100 text-center">
+                         <span className="block text-xs font-bold text-slate-700 mb-1">持续高热</span>
+                         <span className="text-[10px] text-red-500 bg-red-50 px-1 py-0.5 rounded">> 38.5℃</span>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-red-100 text-center">
+                         <span className="block text-xs font-bold text-slate-700 mb-1">腹部剧痛</span>
+                         <span className="text-[10px] text-red-500 bg-red-50 px-1 py-0.5 rounded">拒按/板状</span>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-red-100 text-center">
+                         <span className="block text-xs font-bold text-slate-700 mb-1">引流异常</span>
+                         <span className="text-[10px] text-red-500 bg-red-50 px-1 py-0.5 rounded">鲜红/浑浊</span>
+                      </div>
+                   </div>
+                </div>
               </div>
             )}
 
             {/* Phase 3: Discharge */}
             {activePhase === Phase.DISCHARGE && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InfoCard title="倾倒综合征" icon={<AlertCircle />} className="border-l-4 border-l-orange-400">
-                       <p className="text-sm text-slate-600">进食后出现心慌、出汗、眩晕。</p>
-                       <p className="text-sm font-bold mt-2 text-orange-600">应对：干稀分食（饭后半小时再喝汤），餐后平卧20分钟。</p>
-                    </InfoCard>
-                    <InfoCard title="随访计划" icon={<Building2 />} className="border-l-4 border-l-teal-400">
-                       <p className="text-sm text-slate-600">术后2年内，每3个月复查一次。</p>
-                       <p className="text-sm mt-2 text-slate-500">项目：血常规、肿瘤标志物、CT、胃镜（每年）。</p>
-                    </InfoCard>
-                 </div>
-
-                 <InfoCard title="长期饮食原则" icon={<Utensils />}>
-                    <div className="flex flex-wrap gap-2">
-                      {['少食多餐', '细嚼慢咽', '高蛋白', '低糖', '补充维生素B12'].map((tag) => (
-                        <span key={tag} className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm font-medium border border-green-100">
-                          {tag}
-                        </span>
-                      ))}
+                 
+                 {/* Home Care */}
+                 <InfoCard title="居家护理指南" icon={<Home />}>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="flex gap-3">
+                          <Bed className="text-teal-500 shrink-0" size={20}/>
+                          <div>
+                             <h4 className="text-sm font-bold text-slate-700">半卧位休息</h4>
+                             <p className="text-xs text-slate-500 mt-1">睡觉时垫高枕头或抬高床头，防止食物反流和烧心。</p>
+                          </div>
+                       </div>
+                       <div className="flex gap-3">
+                          <Sparkles className="text-teal-500 shrink-0" size={20}/>
+                          <div>
+                             <h4 className="text-sm font-bold text-slate-700">伤口护理</h4>
+                             <p className="text-xs text-slate-500 mt-1">保持干燥。若伤口红肿、渗液，请及时就医。</p>
+                          </div>
+                       </div>
                     </div>
-                    <p className="mt-3 text-sm text-slate-600">
-                      切除胃部后，消化功能减弱。需长期补充铁剂、叶酸及维生素B12以预防贫血。
+                    <div className="mt-4 pt-3 border-t border-slate-100">
+                       <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                          <Clock size={16} className="text-teal-500"/> 复查时间表
+                       </h4>
+                       <div className="flex justify-between text-[10px] text-slate-600 bg-slate-50 p-2 rounded">
+                          <div className="text-center">
+                             <div className="font-bold">术后1个月</div>
+                             <div>首次复查</div>
+                          </div>
+                          <div className="text-slate-300">→</div>
+                          <div className="text-center">
+                             <div className="font-bold">每3个月</div>
+                             <div>(术后1-2年)</div>
+                          </div>
+                          <div className="text-slate-300">→</div>
+                          <div className="text-center">
+                             <div className="font-bold">每6个月</div>
+                             <div>(术后3-5年)</div>
+                          </div>
+                          <div className="text-slate-300">→</div>
+                           <div className="text-center">
+                             <div className="font-bold">每年</div>
+                             <div>(5年后)</div>
+                          </div>
+                       </div>
+                    </div>
+                 </InfoCard>
+
+                 {/* Diet Traffic Light */}
+                 <InfoCard title="术后饮食红绿灯" icon={<Utensils />}>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Green */}
+                      <div className="bg-green-50 p-2 rounded-lg border border-green-100 flex flex-col items-center text-center">
+                         <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white mb-2 shadow-sm"><ThumbsUp size={16}/></div>
+                         <span className="font-bold text-xs text-green-800 mb-1">推荐 (绿灯)</span>
+                         <div className="w-full h-px bg-green-200 my-1"></div>
+                         <p className="text-[10px] text-slate-600 leading-tight">烂面条、蛋羹、鱼肉泥、豆腐、去皮鸡肉、软饭</p>
+                      </div>
+                      {/* Yellow */}
+                      <div className="bg-yellow-50 p-2 rounded-lg border border-yellow-100 flex flex-col items-center text-center">
+                         <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-white mb-2 shadow-sm"><AlertCircle size={16}/></div>
+                         <span className="font-bold text-xs text-yellow-800 mb-1">谨慎 (黄灯)</span>
+                         <div className="w-full h-px bg-yellow-200 my-1"></div>
+                         <p className="text-[10px] text-slate-600 leading-tight">牛奶(防腹胀)、豆浆、叶菜(必须切碎煮烂)、粗粮</p>
+                      </div>
+                       {/* Red */}
+                      <div className="bg-red-50 p-2 rounded-lg border border-red-100 flex flex-col items-center text-center">
+                         <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white mb-2 shadow-sm"><ThumbsDown size={16}/></div>
+                         <span className="font-bold text-xs text-red-800 mb-1">禁忌 (红灯)</span>
+                         <div className="w-full h-px bg-red-200 my-1"></div>
+                         <p className="text-[10px] text-slate-600 leading-tight">柿子、黑枣、糯米粽子、油炸食品、辛辣、烟酒</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center bg-slate-50 p-1 rounded">
+                       原则：少食多餐 (每日5-6餐)，干稀分食，细嚼慢咽 (每口20-30下)。
                     </p>
                  </InfoCard>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <InfoCard title="倾倒综合征" icon={<Activity />} className="border-l-4 border-l-orange-400">
+                       <p className="text-sm text-slate-600 mb-2">进食高糖流质后出现心慌、出汗、眩晕、无力。</p>
+                       <div className="bg-orange-50 p-2 rounded text-xs text-orange-800 font-bold">
+                          应对：饭后平卧20分钟；进餐时少喝汤，饭后半小时再喝水。
+                       </div>
+                    </InfoCard>
+                    
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 border-l-4 border-l-rose-500">
+                        <h3 className="font-bold text-slate-800 text-lg mb-3 flex items-center gap-2">
+                           <Phone size={20} className="text-rose-500"/> 紧急就医指征
+                        </h3>
+                        <ul className="space-y-2">
+                          {[
+                            '呕血或解柏油样黑便',
+                            '进食后剧烈呕吐无法缓解',
+                            '体重短期内急剧下降 (>5kg/月)',
+                            '严重贫血症状 (晕厥、极度乏力)'
+                          ].map((text, i) => (
+                             <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                                <span className="text-rose-500 font-bold">•</span>
+                                {text}
+                             </li>
+                          ))}
+                        </ul>
+                    </div>
+                 </div>
               </div>
             )}
 
@@ -283,7 +550,7 @@ export default function App() {
             {activePhase === Phase.FRAILTY && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                  <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex gap-4 items-start">
-                    <div className="bg-amber-100 p-2 rounded-lg">
+                    <div className="bg-amber-100 p-2 rounded-lg shrink-0">
                        <BatteryCharging className="text-amber-600" size={24} />
                     </div>
                     <div>
@@ -295,7 +562,89 @@ export default function App() {
                     </div>
                  </div>
 
-                 <InfoCard title="衰弱自测 (Fried 表型量表)" icon={<ClipboardCheck />}>
+                 {/* Sarcopenia Screening - SVG Finger Ring Test */}
+                 <InfoCard title="肌少症简易筛查：指环试验" icon={<Scissors className="rotate-90"/>}>
+                    <div className="flex flex-col md:flex-row gap-6 items-center">
+                       {/* Interactive-looking SVG */}
+                       <div className="relative w-40 h-40 shrink-0 bg-slate-100 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden">
+                          <svg viewBox="0 0 100 100" className="w-full h-full">
+                            {/* Calf */}
+                            <path d="M 40 10 Q 30 50 40 90 L 60 90 Q 70 50 60 10 Z" fill="#fca5a5" stroke="#e11d48" strokeWidth="1" />
+                            {/* Hands forming a ring */}
+                            <path d="M 30 50 Q 10 40 30 30 Q 50 20 70 30 Q 90 40 70 50 Q 50 60 30 50" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="4 2" className="animate-pulse"/>
+                            <circle cx="50" cy="40" r="22" stroke="#334155" strokeWidth="2" fill="none" opacity="0.5"/>
+                            <text x="50" y="85" textAnchor="middle" fontSize="8" fill="#e11d48" fontWeight="bold">非优势小腿最粗处</text>
+                          </svg>
+                       </div>
+
+                       <div className="flex-1 w-full">
+                          <p className="text-sm text-slate-700 font-bold mb-2">测试方法：</p>
+                          <p className="text-xs text-slate-600 mb-3">
+                             坐在椅子上，双脚着地，大腿放松。用双手食指和拇指围成圈，套在小腿最粗处。
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                             <div className="bg-green-50 p-2 rounded border border-green-100 text-center">
+                                <div className="text-green-700 font-bold text-xs mb-1">围不住</div>
+                                <div className="text-[10px] text-slate-500">肌量充足 (低风险)</div>
+                             </div>
+                             <div className="bg-yellow-50 p-2 rounded border border-yellow-100 text-center">
+                                <div className="text-yellow-700 font-bold text-xs mb-1">刚刚好</div>
+                                <div className="text-[10px] text-slate-500">需关注 (中风险)</div>
+                             </div>
+                             <div className="bg-red-50 p-2 rounded border border-red-100 text-center">
+                                <div className="text-red-700 font-bold text-xs mb-1">围得住</div>
+                                <div className="text-[10px] text-slate-500">肌量不足 (高风险)</div>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                 </InfoCard>
+
+                 {/* Nutrition Calculator */}
+                 <InfoCard title="精准营养计算器" icon={<Calculator />}>
+                    <div className="mb-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                       <label className="block text-sm font-bold text-slate-700 mb-2">输入体重 (kg)</label>
+                       <div className="flex gap-2">
+                          <input 
+                             type="number" 
+                             value={userWeight} 
+                             onChange={(e) => setUserWeight(e.target.value)}
+                             placeholder="例如: 60"
+                             className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          />
+                          <button className="bg-teal-500 text-white px-4 py-2 rounded text-sm font-bold">计算</button>
+                       </div>
+                    </div>
+
+                    {nutritionResult ? (
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2">
+                          <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 relative">
+                             <div className="absolute top-2 right-2 text-orange-300"><Sparkles size={16}/></div>
+                             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">推荐每日能量 (Energy)</h4>
+                             <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-bold text-orange-600">{nutritionResult.minEnergy} ~ {nutritionResult.maxEnergy}</span>
+                                <span className="text-xs text-orange-600 font-bold">kcal</span>
+                             </div>
+                             <p className="text-[10px] text-slate-500 mt-1">相当于 {Math.round(nutritionResult.maxEnergy / 300)} ~ {Math.round(nutritionResult.maxEnergy / 250)} 碗米饭的热量</p>
+                          </div>
+                          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 relative">
+                             <div className="absolute top-2 right-2 text-blue-300"><Utensils size={16}/></div>
+                             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">推荐每日蛋白质 (Protein)</h4>
+                             <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-bold text-blue-600">{nutritionResult.minProtein} ~ {nutritionResult.maxProtein}</span>
+                                <span className="text-xs text-blue-600 font-bold">g</span>
+                             </div>
+                             <p className="text-[10px] text-slate-500 mt-1">约等于 {Math.round(parseFloat(nutritionResult.maxProtein) / 7)} 个鸡蛋的蛋白质量</p>
+                          </div>
+                       </div>
+                    ) : (
+                       <p className="text-xs text-slate-400 text-center py-2">请输入体重以查看个性化营养目标</p>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-2 text-right">* 合并肾功能不全者请遵医嘱调整蛋白摄入。</p>
+                 </InfoCard>
+
+                 {/* Fried Scale */}
+                 <InfoCard title="Fried 衰弱表型量表" icon={<ClipboardCheck />}>
                     <div className="space-y-4">
                       <p className="text-sm text-slate-500">请勾选您近期的真实情况（符合一项即勾选）：</p>
                       <div className="space-y-2">
@@ -308,7 +657,7 @@ export default function App() {
                         ].map((item, index) => (
                           <label key={index} className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-slate-200 cursor-pointer transition-all">
                             <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors ${friedItems.includes(index) ? 'bg-teal-500 border-teal-500 text-white' : 'bg-white border-slate-300'}`}>
-                               {friedItems.includes(index) && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
+                               {friedItems.includes(index) && <CheckCircle2 size={14} />}
                             </div>
                             <input 
                               type="checkbox" 
@@ -324,46 +673,46 @@ export default function App() {
                         ))}
                       </div>
                       
-                      <div className={`p-4 rounded-xl border flex flex-col sm:flex-row justify-between items-center gap-2 transition-colors duration-300 ${
+                      {/* Result & AI Action */}
+                      <div className={`p-4 rounded-xl border flex flex-col gap-4 transition-colors duration-300 ${
                         friedItems.length === 0 ? 'bg-green-50 border-green-200' :
                         friedItems.length <= 2 ? 'bg-orange-50 border-orange-200' :
                         'bg-red-50 border-red-200'
                       }`}>
-                        <div className="flex items-center gap-2">
-                          <Activity size={20} className={
-                             friedItems.length === 0 ? 'text-green-600' :
-                             friedItems.length <= 2 ? 'text-orange-600' :
-                             'text-red-600'
-                          } />
-                          <span className={`font-bold ${
-                             friedItems.length === 0 ? 'text-green-800' :
-                             friedItems.length <= 2 ? 'text-orange-800' :
-                             'text-red-800'
-                          }`}>
-                            评估结果：
-                            {friedItems.length === 0 ? '健康 (Robust)' :
-                             friedItems.length <= 2 ? '衰弱前期 (Pre-frail)' :
-                             '衰弱 (Frail)'}
-                          </span>
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <Activity size={20} className={
+                                friedItems.length === 0 ? 'text-green-600' :
+                                friedItems.length <= 2 ? 'text-orange-600' :
+                                'text-red-600'
+                              } />
+                              <span className={`font-bold ${
+                                friedItems.length === 0 ? 'text-green-800' :
+                                friedItems.length <= 2 ? 'text-orange-800' :
+                                'text-red-800'
+                              }`}>
+                                评估结果：
+                                {friedItems.length === 0 ? '健康 (Robust)' :
+                                friedItems.length <= 2 ? '衰弱前期 (Pre-frail)' :
+                                '衰弱 (Frail)'}
+                              </span>
+                            </div>
+                            <div className="text-xs px-2 py-1 bg-white/50 rounded-md font-medium text-slate-600">
+                               已选 {friedItems.length} / 5 项
+                            </div>
                         </div>
-                        <div className="text-xs px-2 py-1 bg-white/50 rounded-md">
-                           已选 {friedItems.length} / 5 项
-                        </div>
+
+                        {/* AI Trigger Button */}
+                        <button 
+                           onClick={handleConsultAI}
+                           className="w-full bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-200 text-teal-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 font-bold text-sm shadow-sm transition-all hover:shadow"
+                        >
+                           <Bot size={18} />
+                           生成 AI 康复方案
+                        </button>
                       </div>
-                      <p className="text-xs text-slate-400 text-right">* 该量表为简易筛查工具，准确诊断请咨询临床医生。</p>
                     </div>
                  </InfoCard>
-
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white p-4 rounded-xl border shadow-sm">
-                      <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Utensils size={16}/> 营养干预</h4>
-                      <p className="text-sm text-slate-600">增加优质蛋白（鱼、蛋、乳清蛋白粉）。必要时使用特医食品 (FSMP) 口服营养补充。</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border shadow-sm">
-                      <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Activity size={16}/> 运动处方</h4>
-                      <p className="text-sm text-slate-600">抗阻运动（举小哑铃、弹力带）结合有氧运动（散步）。预防跌倒至关重要。</p>
-                    </div>
-                 </div>
               </div>
             )}
 
@@ -414,8 +763,8 @@ export default function App() {
         </div>
       )}
 
-      {/* AI Assistant */}
-      <AssistantChat context={getContext()} />
+      {/* AI Assistant - Passed Ref */}
+      <AssistantChat ref={chatRef} context={getContext()} />
     </div>
   );
 }
