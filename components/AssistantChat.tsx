@@ -12,10 +12,11 @@ export interface AssistantChatRef {
   open: () => void;
 }
 
-// Default configuration
+// Default configuration is empty, letting the server use its internal defaults (DeepSeek)
 const DEFAULT_CONFIG = {
   apiKey: "", 
-  model: "gemini-2.5-flash"
+  model: "",
+  baseUrl: ""
 };
 
 const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ context }, ref) => {
@@ -64,7 +65,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'model',
-      text: `配置已更新。\n模型: ${config.model}`
+      text: `配置已更新。使用模型: ${config.model || '默认 (DeepSeek)'}`
     }]);
   };
 
@@ -137,7 +138,7 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Settings size={18} className="text-teal-600"/>
-                    设置 API Key
+                    自定义 AI 配置
                   </h3>
                   <button onClick={resetConfig} className="text-xs text-teal-600 flex items-center gap-1 hover:underline">
                     <RotateCcw size={12}/> 重置默认
@@ -146,11 +147,11 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                
                <div className="space-y-4">
                  <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 mb-2">
-                    由于这是一个纯前端演示，请填写您的 Google Gemini API Key 以启用对话功能。
+                    默认使用 DeepSeek-V3 模型。如果您有自己的 Key 或想使用其他模型，请在此配置。留空则使用默认配置。
                  </div>
 
                  <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">API Key</label>
+                   <label className="block text-xs font-bold text-slate-500 mb-1">API Key (可选)</label>
                    <input 
                      type="password" 
                      value={config.apiKey}
@@ -161,12 +162,23 @@ const AssistantChat = forwardRef<AssistantChatRef, AssistantChatProps>(({ contex
                  </div>
 
                  <div>
+                   <label className="block text-xs font-bold text-slate-500 mb-1">Base URL (可选)</label>
+                   <input 
+                     type="text" 
+                     value={config.baseUrl}
+                     onChange={(e) => setConfig({...config, baseUrl: e.target.value})}
+                     placeholder="https://api.siliconflow.cn/v1"
+                     className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
+                   />
+                 </div>
+
+                 <div>
                    <label className="block text-xs font-bold text-slate-500 mb-1">模型名称 (Model)</label>
                    <input 
                      type="text" 
                      value={config.model}
                      onChange={(e) => setConfig({...config, model: e.target.value})}
-                     placeholder="gemini-2.5-flash"
+                     placeholder="deepseek-ai/DeepSeek-V3.1-Terminus"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
                    />
                  </div>

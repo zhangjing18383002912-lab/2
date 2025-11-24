@@ -534,7 +534,7 @@ export default function App() {
                           {[
                             '呕血或解柏油样黑便',
                             '进食后剧烈呕吐无法缓解',
-                            '体重短期内急剧下降 (>5kg/月)',
+                            '体重短期内急剧下降 (&gt;5kg/月)',
                             '严重贫血症状 (晕厥、极度乏力)'
                           ].map((text, i) => (
                              <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
