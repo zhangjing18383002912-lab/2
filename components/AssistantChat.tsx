@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, Loader2, Settings, Save } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Loader2, Settings, Save, RotateCcw } from 'lucide-react';
 import { askMedicalAssistant } from '../services/geminiService';
 import { ChatMessage } from '../types';
 
@@ -7,7 +7,7 @@ interface AssistantChatProps {
   context: string;
 }
 
-// Default configuration (using DeepSeek as a stable example, but user can change)
+// Default configuration (DeepSeek)
 const DEFAULT_CONFIG = {
   baseUrl: "https://api.deepseek.com",
   apiKey: "",
@@ -48,8 +48,12 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'model',
-      text: `已更新配置。当前模型: ${config.model}。`
+      text: `已更新配置。当前模型: ${config.model}。\nAPI 地址: ${config.baseUrl}`
     }]);
+  };
+
+  const resetConfig = () => {
+    setConfig(DEFAULT_CONFIG);
   };
 
   const scrollToBottom = () => {
@@ -115,10 +119,15 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
           {/* Settings Overlay */}
           {showSettings && (
             <div className="absolute inset-0 top-[60px] bg-white z-20 p-5 overflow-y-auto animate-in fade-in duration-200">
-               <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                 <Settings size={18} className="text-teal-600"/>
-                 模型设置
-               </h3>
+               <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Settings size={18} className="text-teal-600"/>
+                    模型设置
+                  </h3>
+                  <button onClick={resetConfig} className="text-xs text-teal-600 flex items-center gap-1 hover:underline">
+                    <RotateCcw size={12}/> 重置默认
+                  </button>
+               </div>
                
                <div className="space-y-4">
                  <div>
@@ -130,7 +139,12 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                      placeholder="https://api.deepseek.com"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
                    />
-                   <p className="text-[10px] text-slate-400 mt-1">例如: https://api.deepseek.com 或 https://api.moonshot.cn/v1</p>
+                   <p className="text-[10px] text-slate-400 mt-1">
+                     请填入接口域名，例如: 
+                     <br/>• DeepSeek: <code className="bg-slate-100 px-1">https://api.deepseek.com</code>
+                     <br/>• Moonshot: <code className="bg-slate-100 px-1">https://api.moonshot.cn/v1</code>
+                     <br/>(注意：不要填浏览器里的网页地址)
+                   </p>
                  </div>
 
                  <div>
@@ -162,10 +176,6 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                  >
                    <Save size={16} /> 保存配置
                  </button>
-                 
-                 <div className="mt-4 p-3 bg-slate-50 rounded text-xs text-slate-500 border border-slate-100">
-                   <p>提示：您的 Key 仅保存在本地浏览器中，请放心使用。</p>
-                 </div>
                </div>
             </div>
           )}
@@ -174,7 +184,7 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
           <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-4">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${
+                <div className={`max-w-[85%] rounded-2xl p-3 text-sm whitespace-pre-wrap ${
                   msg.role === 'user' 
                     ? 'bg-teal-500 text-white rounded-br-none' 
                     : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-bl-none'
