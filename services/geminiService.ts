@@ -1,12 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Safely access process.env to prevent "ReferenceError: process is not defined" in browser environments
-const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
-const ai = new GoogleGenAI({ apiKey });
+// 通过 vite.config.ts 的 define 配置，process.env.API_KEY 会在构建时被替换为字符串常量
+// 如果未配置，则默认为空字符串
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const askMedicalAssistant = async (question: string, context: string): Promise<string> => {
-  if (!apiKey) {
-    return "API Key is missing. Please configure the environment.";
+  if (!process.env.API_KEY) {
+    return "错误：API Key 未配置。请在 Vercel 后台的 Environment Variables 中添加 API_KEY。";
   }
 
   try {
@@ -35,6 +35,6 @@ export const askMedicalAssistant = async (question: string, context: string): Pr
     return response.text || "抱歉，我现在无法回答这个问题，请稍后再试。";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "连接助手时出现错误，请检查网络设置。";
+    return "连接助手时出现错误，请检查网络设置或 API Key 配额。";
   }
 };
