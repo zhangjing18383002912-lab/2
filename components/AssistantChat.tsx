@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, Loader2, Settings, Save, RotateCcw } from 'lucide-react';
 import { askMedicalAssistant } from '../services/geminiService';
@@ -7,11 +8,11 @@ interface AssistantChatProps {
   context: string;
 }
 
-// Default configuration (DeepSeek)
+// Default configuration (SiliconFlow - Server side will handle the key if empty)
 const DEFAULT_CONFIG = {
-  baseUrl: "https://api.deepseek.com",
-  apiKey: "",
-  model: "deepseek-chat"
+  baseUrl: "https://api.siliconflow.cn/v1",
+  apiKey: "", // Left empty intentionally; backend will provide the default key
+  model: "deepseek-ai/DeepSeek-V3.1-Terminus"
 };
 
 const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
@@ -20,7 +21,7 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
   
   // Chat State
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'model', text: '您好！我是您的胃癌科普助手。您可以点击右上角的设置⚙️更换 AI 模型（如 DeepSeek、Kimi 等）。' }
+    { id: '1', role: 'model', text: '您好！我是您的胃癌科普助手。如有疑问请随时提问。' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,11 +45,15 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
   const saveConfig = () => {
     localStorage.setItem('ai_config', JSON.stringify(config));
     setShowSettings(false);
-    // Add a system message indicating change
+    
+    // Notify user
+    const modelName = config.model || "默认模型";
+    const keyStatus = config.apiKey ? "自定义 Key" : "默认公共 Key";
+    
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'model',
-      text: `已更新配置。当前模型: ${config.model}。\nAPI 地址: ${config.baseUrl}`
+      text: `配置已更新。\n模型: ${modelName}\n模式: ${keyStatus}`
     }]);
   };
 
@@ -67,15 +72,8 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
   const handleSend = async () => {
     if (!input.trim()) return;
     
-    if (!config.apiKey) {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        role: 'model',
-        text: '⚠️ 请先点击右上角设置图标 (⚙️) 填入您的 API Key。'
-      }]);
-      setShowSettings(true);
-      return;
-    }
+    // Note: We no longer block if config.apiKey is empty.
+    // The backend will use the default key if missing.
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input };
     setMessages(prev => [...prev, userMsg]);
@@ -136,14 +134,11 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                      type="text" 
                      value={config.baseUrl}
                      onChange={(e) => setConfig({...config, baseUrl: e.target.value})}
-                     placeholder="https://api.deepseek.com"
+                     placeholder="https://api.siliconflow.cn/v1"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
                    />
                    <p className="text-[10px] text-slate-400 mt-1">
-                     请填入接口域名，例如: 
-                     <br/>• DeepSeek: <code className="bg-slate-100 px-1">https://api.deepseek.com</code>
-                     <br/>• Moonshot: <code className="bg-slate-100 px-1">https://api.moonshot.cn/v1</code>
-                     <br/>(注意：不要填浏览器里的网页地址)
+                     默认地址: <code className="bg-slate-100 px-1">https://api.siliconflow.cn/v1</code>
                    </p>
                  </div>
 
@@ -153,9 +148,13 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                      type="password" 
                      value={config.apiKey}
                      onChange={(e) => setConfig({...config, apiKey: e.target.value})}
-                     placeholder="sk-..."
-                     className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
+                     placeholder="未填写则自动使用内置免费线路"
+                     className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none placeholder:text-slate-400"
                    />
+                   <p className="text-[10px] text-green-600 mt-1 flex items-center gap-1">
+                     <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                     留空即可使用系统内置公共 Key
+                   </p>
                  </div>
 
                  <div>
@@ -164,10 +163,9 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
                      type="text" 
                      value={config.model}
                      onChange={(e) => setConfig({...config, model: e.target.value})}
-                     placeholder="deepseek-chat"
+                     placeholder="deepseek-ai/DeepSeek-V3.1-Terminus"
                      className="w-full text-sm p-2 border border-slate-300 rounded focus:border-teal-500 focus:outline-none"
                    />
-                   <p className="text-[10px] text-slate-400 mt-1">常用: deepseek-chat, moonshot-v1-8k, gpt-4o-mini</p>
                  </div>
 
                  <button 
@@ -211,13 +209,12 @@ const AssistantChat: React.FC<AssistantChatProps> = ({ context }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={config.apiKey ? "输入您的问题..." : "请先配置 API Key"}
-              disabled={!config.apiKey}
-              className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
+              placeholder={config.apiKey ? "输入您的问题..." : "输入问题 (使用公共线路)..."}
+              className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
             <button 
               onClick={handleSend}
-              disabled={isLoading || !input.trim() || !config.apiKey}
+              disabled={isLoading || !input.trim()}
               className="bg-teal-500 hover:bg-teal-600 text-white rounded-full p-2 disabled:opacity-50 transition-colors"
             >
               <Send size={18} />
