@@ -40,6 +40,23 @@ const NAV_ITEMS: NavItem[] = [
   { id: Phase.FRAILTY, label: '衰弱管理', icon: 'Activity', description: '营养与运动干预' },
 ];
 
+// Video data mapping
+// Updated to support iframe for Bilibili or direct mp4
+interface VideoSource {
+  type: 'mp4' | 'iframe';
+  url: string;
+  summary: string;
+}
+
+const VIDEO_DATA: Record<string, VideoSource> = {
+  "胃癌肿瘤介绍": {
+    // BVID: BV1qsVxefE5Z (Updated)
+    type: 'iframe',
+    url: "//player.bilibili.com/player.html?isOutside=true&bvid=BV1qsVxefE5Z&page=1&high_quality=1&danmaku=0&autoplay=0", 
+    summary: "【守“胃”健康】本视频详细讲解了胃癌的预防与早期筛查知识。通过生动的讲解，帮助大家了解日常生活中的伤胃习惯，以及如何通过科学的生活方式远离胃癌威胁。"
+  }
+};
+
 export default function App() {
   const [activePhase, setActivePhase] = useState<Phase>(Phase.DIAGNOSIS);
   const [activeBorrmann, setActiveBorrmann] = useState<BorrmannType>(BorrmannType.I);
@@ -117,6 +134,12 @@ export default function App() {
     if (activePhase === Phase.HOSPITALIZATION) return { viewMode: 'surgery' as const };
     if (activePhase === Phase.DISCHARGE) return { viewMode: 'anatomy' as const }; // Focus on remaining stomach
     return { viewMode: 'healthy' as const };
+  };
+
+  const currentVideoData: VideoSource = VIDEO_DATA[videoTitle] || {
+    type: 'mp4',
+    url: "",
+    summary: `暂无关于“${videoTitle}”的视频资源。`
   };
 
   return (
@@ -534,7 +557,7 @@ export default function App() {
                           {[
                             '呕血或解柏油样黑便',
                             '进食后剧烈呕吐无法缓解',
-                            '体重短期内急剧下降 (&gt;5kg/月)',
+                            '体重短期内急剧下降 (>5kg/月)',
                             '严重贫血症状 (晕厥、极度乏力)'
                           ].map((text, i) => (
                              <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
@@ -551,31 +574,45 @@ export default function App() {
             {/* Phase 4: Frailty */}
             {activePhase === Phase.FRAILTY && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex gap-4 items-start">
-                    <div className="bg-amber-100 p-2 rounded-lg shrink-0">
-                       <BatteryCharging className="text-amber-600" size={24} />
-                    </div>
-                    <div>
-                       <h3 className="font-bold text-amber-800">什么是肿瘤相关衰弱？</h3>
-                       <p className="text-sm text-amber-700 mt-1">
-                         不仅仅是"虚弱"。它是指生理储备下降，抗打击能力减弱。早期干预可显著提高生存质量。
-                         <button onClick={() => openVideo("衰弱的定义与危害")} className="ml-2 underline font-bold cursor-pointer">观看视频</button>
-                       </p>
-                    </div>
-                 </div>
-
+                 {/* REMOVED VIDEO SECTION HERE AS REQUESTED */}
+                 
                  {/* Sarcopenia Screening - SVG Finger Ring Test */}
                  <InfoCard title="肌少症简易筛查：指环试验" icon={<Scissors className="rotate-90"/>}>
                     <div className="flex flex-col md:flex-row gap-6 items-center">
                        {/* Interactive-looking SVG */}
-                       <div className="relative w-40 h-40 shrink-0 bg-slate-100 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden">
-                          <svg viewBox="0 0 100 100" className="w-full h-full">
-                            {/* Calf */}
-                            <path d="M 40 10 Q 30 50 40 90 L 60 90 Q 70 50 60 10 Z" fill="#fca5a5" stroke="#e11d48" strokeWidth="1" />
-                            {/* Hands forming a ring */}
-                            <path d="M 30 50 Q 10 40 30 30 Q 50 20 70 30 Q 90 40 70 50 Q 50 60 30 50" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="4 2" className="animate-pulse"/>
-                            <circle cx="50" cy="40" r="22" stroke="#334155" strokeWidth="2" fill="none" opacity="0.5"/>
-                            <text x="50" y="85" textAnchor="middle" fontSize="8" fill="#e11d48" fontWeight="bold">非优势小腿最粗处</text>
+                       <div className="relative w-40 h-40 shrink-0 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden">
+                          <svg viewBox="0 0 160 160" className="w-full h-full">
+                            {/* Calf (Leg) */}
+                            <path d="M 60 20 Q 50 80 60 140 L 100 140 Q 110 80 100 20 Z" fill="#fca5a5" stroke="#e11d48" strokeWidth="1.5" />
+                            <ellipse cx="80" cy="20" rx="20" ry="8" fill="#fecaca" />
+                            
+                            {/* Animated Hands */}
+                            <g className="animate-[pulse_3s_ease-in-out_infinite]">
+                              {/* Left Hand (Thumb + Index) */}
+                              <path 
+                                d="M 40 80 Q 20 70 30 50 Q 50 40 70 50" 
+                                fill="none" 
+                                stroke="#334155" 
+                                strokeWidth="3" 
+                                strokeLinecap="round"
+                              />
+                              <circle cx="70" cy="50" r="3" fill="#334155" />
+                              
+                              {/* Right Hand (Thumb + Index) */}
+                              <path 
+                                d="M 120 80 Q 140 70 130 50 Q 110 40 90 50" 
+                                fill="none" 
+                                stroke="#334155" 
+                                strokeWidth="3" 
+                                strokeLinecap="round"
+                              />
+                              <circle cx="90" cy="50" r="3" fill="#334155" />
+                              
+                              {/* Connection Line (Gap check) */}
+                              <line x1="70" y1="50" x2="90" y2="50" stroke="#ef4444" strokeWidth="2" strokeDasharray="3,3" />
+                            </g>
+                            
+                            <text x="80" y="150" textAnchor="middle" fontSize="10" fill="#e11d48" fontWeight="bold">非优势小腿最粗处</text>
                           </svg>
                        </div>
 
@@ -741,24 +778,53 @@ export default function App() {
         })}
       </div>
 
-      {/* Video Modal Placeholder */}
+      {/* Video Modal */}
       {showVideoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl">
-              <div className="p-4 border-b flex justify-between items-center">
+           <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="p-4 border-b flex justify-between items-center shrink-0">
                  <h3 className="font-bold text-lg">{videoTitle}</h3>
-                 <button onClick={() => setShowVideoModal(false)} className="text-slate-400 hover:text-slate-800">
-                   关闭
+                 <button onClick={() => setShowVideoModal(false)} className="text-slate-400 hover:text-slate-800 transition-colors">
+                   <XCircle size={24} />
                  </button>
               </div>
-              <div className="aspect-video bg-slate-900 flex items-center justify-center relative">
-                 <PlayCircle size={64} className="text-white/50" />
-                 <p className="absolute bottom-4 text-white/70 text-sm">模拟视频播放器：此处将播放专业科普动画</p>
+              
+              {/* Video Player */}
+              <div className="aspect-video bg-black flex items-center justify-center relative group">
+                 {currentVideoData.url ? (
+                   currentVideoData.type === 'iframe' ? (
+                     <iframe 
+                       src={currentVideoData.url} 
+                       scrolling="no" 
+                       frameBorder="0" 
+                       allowFullScreen={true}
+                       className="w-full h-full"
+                     ></iframe>
+                   ) : (
+                     <video 
+                       src={currentVideoData.url} 
+                       controls 
+                       autoPlay 
+                       className="w-full h-full object-contain"
+                     >
+                       您的浏览器不支持 HTML5 视频播放。
+                     </video>
+                   )
+                 ) : (
+                   <div className="flex flex-col items-center text-slate-500">
+                      <AlertCircle size={48} className="mb-2 opacity-50" />
+                      <p>视频资源加载失败</p>
+                   </div>
+                 )}
               </div>
-              <div className="p-6">
-                 <h4 className="font-bold mb-2">视频摘要</h4>
-                 <p className="text-sm text-slate-600">
-                   本视频详细讲解了{videoTitle}的核心概念。通过3D动画形式展示了病理变化过程，帮助患者直观理解疾病原理。
+
+              {/* Summary */}
+              <div className="p-6 overflow-y-auto">
+                 <h4 className="font-bold mb-2 text-slate-800 flex items-center gap-2">
+                    <Info size={18} className="text-teal-500"/> 视频摘要
+                 </h4>
+                 <p className="text-sm text-slate-600 leading-relaxed">
+                   {currentVideoData.summary}
                  </p>
               </div>
            </div>

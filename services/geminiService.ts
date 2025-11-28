@@ -28,6 +28,10 @@ export const askMedicalAssistant = async (question: string, context: string, con
       { role: "user", content: question }
     ];
 
+    // Client-side safety timeout (60s) to prevent UI hanging forever
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
@@ -36,8 +40,11 @@ export const askMedicalAssistant = async (question: string, context: string, con
       body: JSON.stringify({
         messages: messages,
         config: config
-      })
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -49,6 +56,9 @@ export const askMedicalAssistant = async (question: string, context: string, con
 
   } catch (error: any) {
     console.error("AI Service Error:", error);
+    if (error.name === 'AbortError') {
+       return "助手响应超时。网络可能较慢，请稍后再试。";
+    }
     return `助手暂时不可用: ${error.message || "未知错误"}`;
   }
 };

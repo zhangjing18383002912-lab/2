@@ -1,4 +1,10 @@
 
+// Vercel Serverless Function Configuration
+// Attempt to extend timeout (works on Pro, falls back on Hobby)
+export const config = {
+  maxDuration: 60, 
+};
+
 export default async function handler(req: any, res: any) {
   // 1. 设置 CORS 头
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -19,8 +25,7 @@ export default async function handler(req: any, res: any) {
   }
 
   // --- 服务器默认配置 (兜底配置) ---
-  // 当用户在前端没有填写 Key 时，使用此处的配置。
-  // Key 保存在服务器端，前端用户无法直接查看。
+  // Updated with user's specific SiliconFlow configuration
   const SERVER_DEFAULT = {
     BASE_URL: "https://api.siliconflow.cn/v1",
     API_KEY: "sk-rhwbvllxdmirmvatitnueiithpvmxuusgvwdbeozbpdegyzo",
@@ -37,13 +42,19 @@ export default async function handler(req: any, res: any) {
     // 2. 确定最终使用的配置 (用户配置 > 服务器默认配置)
     const userConfig = config || {};
     
-    // 如果用户填了 Key，就用用户的；否则用服务器默认的
-    const apiKey = userConfig.apiKey ? userConfig.apiKey.trim() : SERVER_DEFAULT.API_KEY;
+    // 如果用户填了 Key，就用用户的；否则用服务器默认的 (判断空字符串)
+    const apiKey = userConfig.apiKey && userConfig.apiKey.trim() !== "" 
+      ? userConfig.apiKey.trim() 
+      : SERVER_DEFAULT.API_KEY;
     
-    // URL 和 Model 同理，如果前端传了空或者是默认初始值，我们也可以在这里兜底，
-    // 但通常前端会传有效值。为了保险，如果为空则使用默认。
-    let baseUrl = userConfig.baseUrl ? userConfig.baseUrl.trim() : SERVER_DEFAULT.BASE_URL;
-    const model = userConfig.model ? userConfig.model.trim() : SERVER_DEFAULT.MODEL;
+    // URL 和 Model 同理
+    let baseUrl = userConfig.baseUrl && userConfig.baseUrl.trim() !== ""
+      ? userConfig.baseUrl.trim() 
+      : SERVER_DEFAULT.BASE_URL;
+      
+    const model = userConfig.model && userConfig.model.trim() !== ""
+      ? userConfig.model.trim() 
+      : SERVER_DEFAULT.MODEL;
 
     if (!apiKey) {
       return res.status(400).json({ error: '未配置 API Key，且服务器无默认 Key。' });
@@ -55,26 +66,45 @@ export default async function handler(req: any, res: any) {
     }
     
     // 智能补全: 如果 URL 不包含 /chat/completions，则添加它
-    // SiliconFlow 的地址通常是 https://api.siliconflow.cn/v1/chat/completions
     if (!baseUrl.includes('/chat/completions')) {
         baseUrl = `${baseUrl}/chat/completions`;
     }
 
     // 4. 转发请求到第三方 API
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-        stream: false
-      })
-    });
+    // 关键优化：Vercel Hobby 版限时 10秒。
+    // 我们设置 9秒 内部超时，防止被 Vercel 强制杀掉进程导致前端报错。
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000); 
+
+    let response;
+    try {
+      response = await fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0.7,
+          // 关键优化：减少 token 数量，迫使模型回答更短、更快，避免超时
+          max_tokens: 300, 
+          stream: false
+        }),
+        signal: controller.signal
+      });
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+             // 优雅处理超时
+             return res.status(504).json({ 
+               error: 'AI 思考时间过长 (超过9秒)。请尝试简化您的问题，或稍后再试。' 
+             });
+        }
+        throw error;
+    }
+    clearTimeout(timeoutId);
 
     // 5. 安全处理响应
     const responseText = await response.text();
@@ -84,11 +114,8 @@ export default async function handler(req: any, res: any) {
         data = JSON.parse(responseText);
     } catch (e) {
         console.error("Upstream returned non-JSON:", responseText.slice(0, 200));
-        const titleMatch = responseText.match(/<title>(.*?)<\/title>/i);
-        const title = titleMatch ? titleMatch[1] : '未知页面';
-        
         return res.status(500).json({ 
-            error: `API 请求失败。目标服务器返回了网页而非 JSON。\n目标地址: ${baseUrl}\n网页标题: ${title}` 
+            error: `API 返回格式错误。目标地址: ${baseUrl}` 
         });
     }
 
