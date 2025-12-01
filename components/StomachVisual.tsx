@@ -54,12 +54,12 @@ const StomachVisual: React.FC<StomachProps> = ({ viewMode, borrmannType, highlig
           </filter>
 
           <filter id="rigid-texture">
-             <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="5" result="noise" />
-             <feDiffuseLighting in="noise" lightingColor="#e2e8f0" surfaceScale="1.5">
+             <feTurbulence type="turbulence" baseFrequency="0.08" numOctaves="4" result="noise" />
+             <feDiffuseLighting in="noise" lightingColor="#e2e8f0" surfaceScale="1.2">
                <feDistantLight azimuth="45" elevation="60" />
              </feDiffuseLighting>
              <feComposite operator="in" in2="SourceGraphic" />
-             <feBlend mode="multiply" in2="SourceGraphic" />
+             <feBlend mode="overlay" in2="SourceGraphic" />
           </filter>
 
           <radialGradient id="grad-normal" cx="60%" cy="40%" r="80%" fx="60%" fy="40%">
@@ -83,7 +83,10 @@ const StomachVisual: React.FC<StomachProps> = ({ viewMode, borrmannType, highlig
 
         <motion.g
            initial={{ scale: 0.95, opacity: 0 }}
-           animate={{ scale: isTypeIV ? 0.92 : 1, opacity: 1 }}
+           animate={{ 
+             scale: isTypeIV ? 0.85 : 1, // Shrink significantly for Type IV (Linitis Plastica)
+             opacity: 1 
+           }}
            transition={{ duration: 0.8 }}
         >
           {/* Main Stomach Shape */}
@@ -93,7 +96,7 @@ const StomachVisual: React.FC<StomachProps> = ({ viewMode, borrmannType, highlig
             stroke={isTypeIV ? "#475569" : "#7f1d1d"}
             strokeWidth={isTypeIV ? "3" : "2"}
             filter={isTypeIV ? "url(#rigid-texture)" : "url(#tissue-texture)"}
-            className="drop-shadow-lg"
+            className="drop-shadow-lg transition-all duration-700"
           />
           
           {/* Rugae - Only show if NOT Type IV (Linitis Plastica smooths them out) */}
@@ -105,16 +108,13 @@ const StomachVisual: React.FC<StomachProps> = ({ viewMode, borrmannType, highlig
             </g>
           )}
 
-          {/* Type IV Overlay Detail */}
+          {/* Type IV Overlay Detail - Mesh/Grid effect to show stiffness */}
           {isTypeIV && (
-             <path 
-               d={stomachPath} 
-               fill="none" 
-               stroke="#334155" 
-               strokeWidth="1" 
-               strokeDasharray="2,2" 
-               opacity="0.5" 
-             />
+             <g opacity="0.4">
+               <path d={stomachPath} fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="3,3" />
+               {/* Cross hatching to suggest fibrosis */}
+               <path d="M 120 100 L 200 180 M 140 300 L 220 220" stroke="#334155" strokeWidth="2" strokeOpacity="0.5"/>
+             </g>
           )}
         </motion.g>
 
@@ -130,49 +130,70 @@ const StomachVisual: React.FC<StomachProps> = ({ viewMode, borrmannType, highlig
                 {/* Invisible Hit Area */}
                 <circle cx={zone.x} cy={zone.y} r={zone.r} fill="transparent" />
                 
-                {/* Visual Indicator */}
+                {/* Visual Indicator - Pulsing */}
                 <circle 
                   cx={zone.x} 
                   cy={zone.y} 
-                  r="4" 
+                  r="6" 
                   fill="#fbbf24" 
                   className="animate-pulse"
                   stroke="white"
                   strokeWidth="2"
+                />
+                <circle 
+                  cx={zone.x} 
+                  cy={zone.y} 
+                  r="12" 
+                  fill="#fbbf24" 
+                  opacity="0.3"
+                  className="animate-ping"
                 />
                 
                 {/* Label Line */}
                 <line 
                   x1={zone.x} 
                   y1={zone.y} 
-                  x2={zone.x + (zone.x > 200 ? 30 : -30)} 
-                  y2={zone.y - 20} 
-                  stroke="black" 
-                  strokeWidth="0.5" 
-                  opacity="0.3"
+                  x2={zone.x + (zone.x > 200 ? 40 : -40)} 
+                  y2={zone.y - 25} 
+                  stroke="#334155" 
+                  strokeWidth="1" 
                 />
                 
                 {/* Text Label */}
+                <rect 
+                  x={zone.x + (zone.x > 200 ? 35 : -95)} 
+                  y={zone.y - 45}
+                  width="60"
+                  height="22"
+                  rx="4"
+                  fill="white"
+                  className="shadow-sm"
+                  stroke="#e2e8f0"
+                  strokeWidth="0.5"
+                />
                 <text 
-                  x={zone.x + (zone.x > 200 ? 35 : -35)} 
-                  y={zone.y - 20} 
-                  textAnchor={zone.x > 200 ? "start" : "end"}
-                  className="font-sans text-xs font-bold fill-slate-800 drop-shadow-md group-hover:fill-rose-600 transition-colors"
+                  x={zone.x + (zone.x > 200 ? 65 : -65)} 
+                  y={zone.y - 30} 
+                  textAnchor="middle"
+                  className="font-sans text-xs font-bold fill-slate-700 pointer-events-none"
                   dominantBaseline="middle"
                 >
                   {zone.label}
                 </text>
               </g>
             ))}
-            <text x="200" y="420" textAnchor="middle" fontSize="10" fill="#94a3b8" className="animate-bounce">点击高亮部位查看详情</text>
+            <text x="200" y="420" textAnchor="middle" fontSize="11" fill="#64748b" className="animate-bounce font-medium bg-white/80 px-3 py-1 rounded-full">👆 点击黄色热点查看详情</text>
           </g>
         )}
 
         {viewMode === 'surgery' && (
           <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+             {/* Distal Gastrectomy Line */}
              <path d="M 90 260 L 320 320" stroke="white" strokeWidth="3" strokeDasharray="6,4" />
-             <text x="330" y="325" fill="white" fontSize="12" fontWeight="bold" style={{textShadow: "0px 1px 2px black"}}>远端切除 (保留上部)</text>
+             {/* Adjusted coordinates to center-left align text so it isn't cut off */}
+             <text x="315" y="340" textAnchor="end" fill="white" fontSize="12" fontWeight="bold" style={{textShadow: "0px 1px 2px black"}}>远端切除 (保留上部)</text>
              
+             {/* Total Gastrectomy Line */}
              <path d="M 160 80 L 220 80" stroke="white" strokeWidth="3" strokeDasharray="6,4" />
              <text x="230" y="85" fill="white" fontSize="12" fontWeight="bold" style={{textShadow: "0px 1px 2px black"}}>全胃切除 (R-Y吻合)</text>
           </motion.g>
@@ -259,8 +280,8 @@ const StomachVisual: React.FC<StomachProps> = ({ viewMode, borrmannType, highlig
                    胃壁僵硬 / 皱襞消失 / 腔隙缩小
                  </text>
                </g>
-               <circle cx="100" cy="300" r="40" fill="url(#grad-stiff)" opacity="0.2" filter="url(#rigid-texture)" />
-               <circle cx="280" cy="150" r="50" fill="url(#grad-stiff)" opacity="0.2" filter="url(#rigid-texture)" />
+               {/* Overlay hints for stiffness */}
+               <circle cx="150" cy="150" r="100" fill="transparent" stroke="white" strokeWidth="2" strokeDasharray="4,4" opacity="0.3" className="animate-pulse"/>
             </motion.g>
           )}
         </AnimatePresence>
