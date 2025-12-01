@@ -35,9 +35,9 @@ export default async function handler(req: Request) {
     const payload = {
       model: SERVER_CONFIG.MODEL,
       messages: messages,
-      stream: true, // Enable streaming for fluidity and to bypass timeouts
+      stream: true, 
       temperature: 0.7,
-      max_tokens: 512,
+      max_tokens: 4096, // Increased from 512 to 4096 to prevent truncation of long answers
       top_p: 0.7
     };
 

@@ -42,16 +42,28 @@ export const streamMedicalAssistant = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let done = false;
+    let buffer = ''; // Buffer to hold incomplete lines
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
       done = doneReading;
       const chunkValue = decoder.decode(value, { stream: true });
       
-      const lines = chunkValue.split('\n');
+      // Append new chunk to buffer
+      buffer += chunkValue;
+      
+      // Split by newlines
+      const lines = buffer.split('\n');
+      
+      // The last element is likely incomplete (or empty string if ends with \n), keep it in buffer
+      buffer = lines.pop() || '';
+
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6);
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        if (trimmedLine.startsWith('data: ')) {
+          const dataStr = trimmedLine.slice(6);
           if (dataStr === '[DONE]') break;
           try {
             const data = JSON.parse(dataStr);
@@ -60,7 +72,8 @@ export const streamMedicalAssistant = async (
               onChunk(content);
             }
           } catch (e) {
-            // Ignore parse errors for partial chunks
+            // Ignore parse errors for truly partial chunks that shouldn't happen with line buffering
+            console.warn("JSON parse error", e);
           }
         }
       }
